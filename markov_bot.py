@@ -24,10 +24,13 @@ T = "BOT_TOKEN"
 
 groups = {}
 
-import os.path, pickle
+import os.path, pickle, hashlib
 if os.path.isfile("MarkovBot_stats.dat"):
+    #try:
     with open("MarkovBot_stats.dat", "rb") as f:
         groups = pickle.load(f)
+    #except:
+    #    pass
 else:
     print("not a file")
     print("1-800-FIX-YOUR-SHIT")
@@ -49,7 +52,6 @@ else:
 SKIP = False
 
 import logging
-# https://github.com/python-telegram-bot/python-telegram-bot
 import telegram
 import time
 from time import sleep
@@ -59,11 +61,11 @@ import sys, traceback
 try:
     from urllib.error import URLError
 except ImportError:
-    from urllib2 import URLError  # python 2
+    from urllib2 import URLError 
 
-def save():
+def save(reason):
     if os.path.isfile("MarkovBot_stats.dat"):
-        print("SAVING")
+        print("SAVING ",reason)
         with open("MarkovBot_stats.dat", "wb") as f:
             pickle.dump(groups, f)
         print("SAVED")
@@ -88,7 +90,7 @@ def main():
                 ij += 1
                 if ij == 256:
                     ij = 0
-                    save()
+                    save("/256 update")
                 if last_uid == None:
                     last_uid = update_id
                 elif update_id > last_uid:
@@ -97,7 +99,6 @@ def main():
                 elif update_id == last_uid and SKIP:
                     print("Queue flushed")
                 last_uid = update_id
-                #print(":" + str(update_id))
             except telegram.TelegramError as e:
                 if e.message in ("Bad Gateway", "Timed out"):
                     counter = 0
@@ -112,7 +113,7 @@ def main():
                     raise e
             except KeyboardInterrupt as e:
                 print("EXITING - DO NOT TERMINATE")
-                save()
+                save("Ctrl-C")
                 return
             except URLError as e:
                 sleep(1)
@@ -120,7 +121,7 @@ def main():
             if not rate_lim:
                 counter = 0
     except BaseException as e:
-        save()
+        save("Exception")
         raise e
             
 
@@ -183,11 +184,11 @@ def echo(bot, update_id):
                 if t in LAST_USER.keys():
                     if (curtime - LAST_USER[t]) < g[0]:
                         continue
+                    
                 LAST_USER[t] = curtime
                 COMMON_T += 1
                 if COMMON_T == 8:
                     COMMON_T = 0
-                    save()
                 if "" in g.keys():
                     while True:
                         words = []
@@ -209,8 +210,11 @@ def echo(bot, update_id):
                                         words[-1] += "."
                         msg = " ".join(words)
                         if len(msg) > 0: break
-                    bot.sendMessage(chat_id=chat_id,
+                    try:
+                        bot.sendMessage(chat_id=chat_id,
                             text=msg)
+                    except:
+                        pass
                 else:
                     bot.sendMessage(chat_id=chat_id,
                             text="[Chain is empty]",
@@ -263,6 +267,22 @@ def echo(bot, update_id):
                         text="[Speed set]",
                         reply_to_message_id=replyto)
                 g[2] = v
+            if cmd == "/markovclear":
+                hash = hashlib.md5((str(chat_id)+str(user)+str(time.time()//1000)).encode("utf-8")).hexdigest()[:12].upper()
+                what = ""
+                try:
+                    what = message.split(" ")[1].upper()
+                except:
+                    pass
+                if what == hash:
+                    groups[chat_id] = {}
+                    bot.sendMessage(chat_id=chat_id,
+                        text="[Messages cleared]",
+                        reply_to_message_id=replyto)                    
+                else:
+                    bot.sendMessage(chat_id=chat_id,
+                        text="[Copy this to confirm]\n/markovclear " + hash,
+                        reply_to_message_id=replyto)
             if cmd == "/markovtts":
                 if t in LAST_USER.keys():
                     if (curtime - LAST_USER[t]) < max(5,g[0]):
@@ -271,7 +291,6 @@ def echo(bot, update_id):
                 COMMON_T += 1
                 if COMMON_T == 8:
                     COMMON_T = 0
-                    save()
                 if "" in g.keys():
                     while True:
                         words = []
@@ -341,10 +360,15 @@ if __name__ == '__main__':
     while True:
         try:
             main()
-            save()
+            save("main")
             import sys
             sys.exit(0)
-        except SystemExit as e:
+        except KeyboardInterrupt:
+            input()
+            import sys
+            sys.exit(0)
+        except SystemExit:
             break
         except BaseException as e:
             logging.exception(e)
+            input()
