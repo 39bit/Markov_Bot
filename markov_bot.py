@@ -145,6 +145,9 @@ def main():
             except URLError as e:
                 sleep(1)
                 counter = 0
+            except telegram.error.NetworkError as e:
+                sleep(1)
+                counter = 0
             if not rate_lim:
                 counter = 0
     except BaseException as e:
