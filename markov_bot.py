@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
+"""
+Created on Sat Nov 28 01:00:59 2015
 
-# markovbot.py
+@author: int
+"""
 
 
 T = "BOT_TOKEN"
@@ -69,8 +72,9 @@ def save(reason):
         with open("MarkovBot_stats.dat", "wb") as f:
             pickle.dump(groups, f)
         print("SAVED")
-
+EEE = 0
 def main():
+    global EEE
     update_id = None
 
     logging.basicConfig(
@@ -81,16 +85,18 @@ def main():
     counter = 0
     rate_lim = False
     last_uid = None
+    
 
+    F = 0
     ij = 0
     try:
         while True:
             try:
                 update_id = echo(bot, update_id)
                 ij += 1
-                if ij == 256:
+                if ij == 512:
                     ij = 0
-                    save("/256 update")
+                    save("/"+str(ij)+" update")
                 if last_uid == None:
                     last_uid = update_id
                 elif update_id > last_uid:
@@ -108,9 +114,30 @@ def main():
                     print("Ratelimit: sleeping for ", 5*counter, " seconds")
                     sleep(5*counter)
                     rate_lim = True
+                elif "Unauthorized" in e.message:
+                    update_id=EEE+1
+                    print("!!",update_id)
                 else:
                     counter = 0
                     raise e
+            #except KeyError as e:
+            #    update_id=EEE+1
+            #    if F>=update_id:
+            #        update_id=F+1
+            #    F=update_id
+            #    print("!!",update_id)
+            #except AttributeError as e:
+            #    update_id=EEE+1
+            #    if F>=update_id:
+            #        update_id=F+1
+            #    F=update_id
+            #    print("!!",update_id)
+            #except TypeError as e:
+            #    update_id=EEE+1
+            #    if F>=update_id:
+            #        update_id=F+1
+            #    F=update_id
+            #    print("!!",update_id)
             except KeyboardInterrupt as e:
                 print("EXITING - DO NOT TERMINATE")
                 save("Ctrl-C")
@@ -151,9 +178,12 @@ def limit(s):
 LANGS = ["af","an","bg","bs","ca","cs","cy","da","de","el","en","en-gb","en-sc","en-uk-north","en-uk-rp","en-uk-wmids","en-us","en-wi","eo","es","es-la","et","fa","fa-pin","fi","fr-be","fr-fr","ga","grc","hi","hr","hu","hy","hy-west","id","is","it","jbo","ka","kn","ku","la","lfn","lt","lv","mk","ml","ms","ne","nl","no","pa","pl","pt-br","pt-pt","ro","ru","sk","sq","sr","sv","sw","ta","tr","vi","vi-hue","vi-sgn","zh","zh-yue"]
 
 def echo(bot, update_id):
-    global COMMON_T
+    global COMMON_T, EEE
 
     for update in bot.getUpdates(offset=update_id, timeout=10):
+        EEE = update.update_id
+        if update.message == None:
+            continue
         chat_id = update.message.chat_id
         update_id = update.update_id + 1
         message = update.message.text
@@ -216,9 +246,12 @@ def echo(bot, update_id):
                     except:
                         pass
                 else:
-                    bot.sendMessage(chat_id=chat_id,
+                    try:
+                        bot.sendMessage(chat_id=chat_id,
                             text="[Chain is empty]",
                             reply_to_message_id=replyto)
+                    except:
+                        pass
             if cmd == "/mlimit":
                 if SKIP: continue
                 t = " ".join(message.split(" ")[1:]).strip()
@@ -360,7 +393,7 @@ if __name__ == '__main__':
     while True:
         try:
             main()
-            save("main")
+            #save("main")
             import sys
             sys.exit(0)
         except KeyboardInterrupt:
