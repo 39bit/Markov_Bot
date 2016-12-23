@@ -28,10 +28,12 @@ T = "BOT_TOKEN"
 groups = {}
 
 import os.path, pickle, hashlib
-if os.path.isfile("MarkovBot_stats.dat"):
+if os.path.isfile("MarkovBot_stats.dat") and False:
     #try:
+    print("Loading")
     with open("MarkovBot_stats.dat", "rb") as f:
         groups = pickle.load(f)
+    print("Loaded")
     #except:
     #    pass
 else:
@@ -53,6 +55,7 @@ else:
 
 
 SKIP = False
+DEBUG = False
 
 import logging
 import telegram
@@ -67,11 +70,13 @@ except ImportError:
     from urllib2 import URLError 
 
 def save(reason):
-    if os.path.isfile("MarkovBot_stats.dat"):
-        print("SAVING ",reason)
-        with open("MarkovBot_stats.dat", "wb") as f:
-            pickle.dump(groups, f)
-        print("SAVED")
+    print("SAVING ",reason)
+    for key in groups:
+        save_group(key)
+    #with open("MarkovBot_stats.dat", "wb") as f:
+    #    pickle.dump(groups, f)
+    print("SAVED")
+
 EEE = 0
 def main():
     global EEE
@@ -94,7 +99,7 @@ def main():
             try:
                 update_id = echo(bot, update_id)
                 ij += 1
-                if ij == 512:
+                if ij == 1024:
                     ij = 0
                     save("/"+str(ij)+" update")
                 if last_uid == None:
@@ -105,7 +110,20 @@ def main():
                 elif update_id == last_uid and SKIP:
                     print("Queue flushed")
                 last_uid = update_id
+            except telegram.error.NetworkError as e:
+                if DEBUG:
+                    print(str(e))
+                    sleep(1)
+                if "400" in str(e) or "message not found" in str(e):
+                    update_id=EEE+1
+                    print("!!",update_id)
+                else:
+                    sleep(1)
+                    counter = 0
             except telegram.TelegramError as e:
+                if DEBUG:
+                    print(str(e))
+                    sleep(1)
                 if e.message in ("Bad Gateway", "Timed out"):
                     counter = 0
                     sleep(1)
@@ -117,35 +135,19 @@ def main():
                 elif "Unauthorized" in e.message:
                     update_id=EEE+1
                     print("!!",update_id)
+                elif "400" in e.message:
+                    update_id=EEE+1
+                    print("!!",update_id)
+                elif "invalid server response" in e.message.lower():
+                    sleep(1)
                 else:
                     counter = 0
                     raise e
-            #except KeyError as e:
-            #    update_id=EEE+1
-            #    if F>=update_id:
-            #        update_id=F+1
-            #    F=update_id
-            #    print("!!",update_id)
-            #except AttributeError as e:
-            #    update_id=EEE+1
-            #    if F>=update_id:
-            #        update_id=F+1
-            #    F=update_id
-            #    print("!!",update_id)
-            #except TypeError as e:
-            #    update_id=EEE+1
-            #    if F>=update_id:
-            #        update_id=F+1
-            #    F=update_id
-            #    print("!!",update_id)
             except KeyboardInterrupt as e:
                 print("EXITING - DO NOT TERMINATE")
                 save("Ctrl-C")
                 return
             except URLError as e:
-                sleep(1)
-                counter = 0
-            except telegram.error.NetworkError as e:
                 sleep(1)
                 counter = 0
             if not rate_lim:
@@ -180,21 +182,88 @@ def limit(s):
 
 LANGS = ["af","an","bg","bs","ca","cs","cy","da","de","el","en","en-gb","en-sc","en-uk-north","en-uk-rp","en-uk-wmids","en-us","en-wi","eo","es","es-la","et","fa","fa-pin","fi","fr-be","fr-fr","ga","grc","hi","hr","hu","hy","hy-west","id","is","it","jbo","ka","kn","ku","la","lfn","lt","lv","mk","ml","ms","ne","nl","no","pa","pl","pt-br","pt-pt","ro","ru","sk","sq","sr","sv","sw","ta","tr","vi","vi-hue","vi-sgn","zh","zh-yue"]
 
+gcache = []
+max_cache_size = 10
+gc_counter = 20
+
+def load_group(chat_id):
+    global gcache
+    try:
+        with open("markov/chat_" + str(chat_id) + ".dat", "rb") as f:
+            print("loading",chat_id)
+            groups[chat_id] = pickle.load(f)
+            print("loaded",chat_id,"now",len(gcache))
+        gcache.append(chat_id)
+    except:
+        pass
+    check_cache()
+
+def check_cache():
+    global gcache
+    while len(gcache) > max_cache_size:
+        unload_group(gcache[0])
+        gcache = gcache[1:]
+
+import gc
+def unload_group(chat_id):
+    global gcache, gc_counter
+    try:
+        with open("markov/chat_" + str(chat_id) + ".dat", "wb") as f:
+            print("unloading",chat_id)
+            pickle.dump(groups[chat_id], f)
+            groups[chat_id] = None
+            del groups[chat_id]
+            print("unloaded",chat_id)
+        gcache.remove(chat_id)
+        gc_counter -= 1
+        if gc_counter < 1:
+            gc_counter = 20
+            gc.collect()
+            print("forcing gc")
+    except:
+        pass
+
+def save_group(chat_id):
+    try:
+        with open("markov/chat_" + str(chat_id) + ".dat", "wb") as f:
+            print("saving",chat_id)
+            pickle.dump(groups[chat_id], f)
+            print("saved",chat_id)
+    except:
+        pass
+
+keys = list(groups.keys())
+for key in keys:
+    unload_group(key)
+
 def echo(bot, update_id):
-    global COMMON_T, EEE
+    global COMMON_T, EEE, gcache
 
     for update in bot.getUpdates(offset=update_id, timeout=10):
         EEE = update.update_id
         if update.message == None:
             continue
         chat_id = update.message.chat_id
+        chat_type = update.message.chat.type
         update_id = update.update_id + 1
         message = update.message.text
         replyto = update.message.message_id
         user = update.message.from_user.id
+        admbypass = False
+        try:
+            admbypass = admbypass or update.message.chat.all_members_are_administrators
+        except:
+            pass
+        if DEBUG:
+            print(EEE, chat_id, user, message)
+
+        if chat_id not in gcache:
+            load_group(chat_id)
 
         if chat_id not in groups.keys():
             groups[chat_id] = {}
+            gcache.append(chat_id)
+            check_cache()
                 
         g = groups[chat_id]
         if 0 not in g.keys():
@@ -203,6 +272,10 @@ def echo(bot, update_id):
             g[1] = "en"
         if 2 not in g.keys():
             g[2] = 100
+        if 3 not in g.keys():
+            g[3] = True
+        if 4 not in g.keys():
+            g[4] = 10000
             
         curtime = time.time()
         t = (user, chat_id)
@@ -226,8 +299,11 @@ def echo(bot, update_id):
                     while True:
                         words = []
                         word = ""
-                        word = random.choice(g[""])
-                        while word != "" and len(words) < 100:
+                        if random.randint(0,10)<5:
+                            word = random.choice(list(filter(lambda x:type(x)==str,g.keys())))
+                        else:
+                            word = random.choice(g[word])
+                        while word != "" and len(words) < min(g[4],100):
                             words.append(word)
                             word = "".join(filter(lambda x:(unicodedata.category(x) in ALLOWABLE),word)).lower()
                             if word not in g.keys():
@@ -257,6 +333,16 @@ def echo(bot, update_id):
                         pass
             if cmd == "/mlimit":
                 if SKIP: continue
+                if t in LAST_USER.keys():
+                    if (curtime - LAST_USER[t]) < 1:
+                        continue
+                if SKIP: continue
+                try:
+                    st = bot.getChatMember(chat_id=chat_id, user_id=user).status
+                    if chat_type in ["group","supergroup","channel"] and not admbypass and (st != "administrator" and st != "creator"):
+                        continue
+                except:
+                    pass
                 t = " ".join(message.split(" ")[1:]).strip()
                 if len(t) < 1:
                     bot.sendMessage(chat_id=chat_id,
@@ -270,9 +356,9 @@ def echo(bot, update_id):
                             text="[Usage: /mlimit seconds]",
                             reply_to_message_id=replyto)
                     continue
-                if v <= 0 or v > 10000:
+                if v <= 0 or v > 100000:
                     bot.sendMessage(chat_id=chat_id,
-                            text="[limit must be between 1-10 000 seconds]",
+                            text="[limit must be between 1-100 000 seconds]",
                             reply_to_message_id=replyto)
                     continue
                 bot.sendMessage(chat_id=chat_id,
@@ -281,6 +367,9 @@ def echo(bot, update_id):
                 g[0] = v
             if cmd == "/markovttsspeed":
                 if SKIP: continue
+                if t in LAST_USER.keys():
+                    if (curtime - LAST_USER[t]) < 1:
+                        continue
                 t = " ".join(message.split(" ")[1:]).strip()
                 if len(t) < 1:
                     bot.sendMessage(chat_id=chat_id,
@@ -303,7 +392,49 @@ def echo(bot, update_id):
                         text="[Speed set]",
                         reply_to_message_id=replyto)
                 g[2] = v
+            if cmd == "/markovmaxwords":
+                if t in LAST_USER.keys():
+                    if (curtime - LAST_USER[t]) < 1:
+                        continue
+                try:
+                    st = bot.getChatMember(chat_id=chat_id, user_id=user).status
+                    if chat_type in ["group","supergroup","channel"] and not admbypass and (st != "administrator" and st != "creator"):
+                        continue
+                except:
+                    pass
+                t = " ".join(message.split(" ")[1:]).strip()
+                if len(t) < 1:
+                    bot.sendMessage(chat_id=chat_id,
+                            text="[Usage: /markovmaxwords words]",
+                            reply_to_message_id=replyto)
+                    continue
+                try:
+                    v = int(t)
+                except:
+                    bot.sendMessage(chat_id=chat_id,
+                            text="[Usage: /markovmaxwords words]",
+                            reply_to_message_id=replyto)
+                    continue
+                if v < 1 or v > 120:
+                    bot.sendMessage(chat_id=chat_id,
+                            text="[Limit for words is 1-120]",
+                            reply_to_message_id=replyto)
+                    continue
+                g[4] = v
+                save_group(chat_id)
+                bot.sendMessage(chat_id=chat_id,
+                    text="[Maximum words set]",
+                    reply_to_message_id=replyto)                    
             if cmd == "/markovclear":
+                if t in LAST_USER.keys():
+                    if (curtime - LAST_USER[t]) < 1:
+                        continue
+                try:
+                    st = bot.getChatMember(chat_id=chat_id, user_id=user).status
+                    if chat_type in ["group","supergroup","channel"] and not admbypass and (st != "administrator" and st != "creator"):
+                        continue
+                except:
+                    pass
                 hash = hashlib.md5((str(chat_id)+str(user)+str(time.time()//1000)).encode("utf-8")).hexdigest()[:12].upper()
                 what = ""
                 try:
@@ -312,6 +443,7 @@ def echo(bot, update_id):
                     pass
                 if what == hash:
                     groups[chat_id] = {}
+                    save_group(chat_id)
                     bot.sendMessage(chat_id=chat_id,
                         text="[Messages cleared]",
                         reply_to_message_id=replyto)                    
@@ -319,6 +451,36 @@ def echo(bot, update_id):
                     bot.sendMessage(chat_id=chat_id,
                         text="[Copy this to confirm]\n/markovclear " + hash,
                         reply_to_message_id=replyto)
+            if cmd == "/markovpause":
+                if t in LAST_USER.keys():
+                    if (curtime - LAST_USER[t]) < 1:
+                        continue
+                try:
+                    st = bot.getChatMember(chat_id=chat_id, user_id=user).status
+                    if chat_type in ["group","supergroup","channel"] and not admbypass and (st != "administrator" and st != "creator"):
+                        continue
+                except:
+                    pass
+                g[3] = False
+                save_group(chat_id)
+                bot.sendMessage(chat_id=chat_id,
+                    text="[Reading paused]",
+                    reply_to_message_id=replyto)                    
+            if cmd == "/markovresume":
+                if t in LAST_USER.keys():
+                    if (curtime - LAST_USER[t]) < 1:
+                        continue
+                try:
+                    st = bot.getChatMember(chat_id=chat_id, user_id=user).status
+                    if chat_type in ["group","supergroup","channel"] and not admbypass and (st != "administrator" and st != "creator"):
+                        continue
+                except:
+                    pass
+                g[3] = True
+                save_group(chat_id)
+                bot.sendMessage(chat_id=chat_id,
+                    text="[Reading resumed]",
+                    reply_to_message_id=replyto)                    
             if cmd == "/markovtts":
                 if t in LAST_USER.keys():
                     if (curtime - LAST_USER[t]) < max(5,g[0]):
@@ -331,8 +493,11 @@ def echo(bot, update_id):
                     while True:
                         words = []
                         word = ""
-                        word = random.choice(g[""])
-                        while word != "" and len(words) < 120:
+                        if random.randint(0,10)<5:
+                            word = random.choice(list(filter(lambda x:type(x)==str,g.keys())))
+                        else:
+                            word = random.choice(g[word])
+                        while word != "" and len(words) < min(g[4],120):
                             words.append(word)
                             word = "".join(filter(lambda x:(unicodedata.category(x) in ALLOWABLE),word)).lower()
                             if word not in g.keys():
@@ -366,6 +531,9 @@ def echo(bot, update_id):
                             text="[Chain is empty]",
                             reply_to_message_id=replyto)
             if cmd == "/markovttslang":
+                if t in LAST_USER.keys():
+                    if (curtime - LAST_USER[t]) < 1:
+                        continue
                 v = " ".join(message.split(" ")[1:]).strip()
                 if v not in LANGS:
                     bot.sendMessage(chat_id=chat_id,
@@ -378,14 +546,13 @@ def echo(bot, update_id):
                 g[1] = v
         elif message[0] != "/":
             g = groups[chat_id]
-            if SPLIT_LINES:
-                for line in message.split("\n"):
-                    addMessage(line, g)
-            else:
-                addMessage(message, g)
-            
-        
-    sleep(0.5)
+            if g[3]:
+                if SPLIT_LINES:
+                    for line in message.split("\n"):
+                        addMessage(line, g)
+                else:
+                    addMessage(message, g)
+    sleep(0.4)            
     return update_id
     
     
