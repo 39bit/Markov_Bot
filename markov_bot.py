@@ -1,68 +1,23 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Nov 28 01:00:59 2015
-
-@author: int
-"""
-
-
-T = "BOT_TOKEN"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+import os.path, pickle, hashlib, logging, telegram, time, sys, traceback, random, unicodedata, os, gc
+ 
+T = "BOT_TOKEN_GOES_HERE"
 
 groups = {}
+          
+# Unicode character categories considered    
+ALLOWABLE = ["Lc","Ll","Lm","Lo","Lt","Lu","Nd","Nl","No"]
+COMMON_T = 0
 
-import os.path, pickle, hashlib
-if os.path.isfile("MarkovBot_stats.dat") and False:
-    #try:
-    print("Loading")
-    with open("MarkovBot_stats.dat", "rb") as f:
-        groups = pickle.load(f)
-    print("Loaded")
-    #except:
-    #    pass
-else:
-    print("not a file")
-    print("1-800-FIX-YOUR-SHIT")
+SPLIT_LINES = False
+LAST_USER = {}
 
+# Supported TTS languages
+LANGS = ["af","an","bg","bs","ca","cs","cy","da","de","el","en","en-gb","en-sc","en-uk-north","en-uk-rp","en-uk-wmids","en-us","en-wi","eo","es","es-la","et","fa","fa-pin","fi","fr-be","fr-fr","ga","grc","hi","hr","hu","hy","hy-west","id","is","it","jbo","ka","kn","ku","la","lfn","lt","lv","mk","ml","ms","ne","nl","no","pa","pl","pt-br","pt-pt","ro","ru","sk","sq","sr","sv","sw","ta","tr","vi","vi-hue","vi-sgn","zh","zh-yue"]
 
+gcache = []
+max_cache_size = 10
+gc_counter = 20
 
-
-
-
-
-
-
-
-
-
-
-
-
-SKIP = False
-DEBUG = False
-
-import logging
-import telegram
-import time
-from time import sleep
-
-import sys, traceback
 
 try:
     from urllib.error import URLError
@@ -73,13 +28,11 @@ def save(reason):
     print("SAVING ",reason)
     for key in groups:
         save_group(key)
-    #with open("MarkovBot_stats.dat", "wb") as f:
-    #    pickle.dump(groups, f)
     print("SAVED")
 
-EEE = 0
+last_msg_id = 0
 def main():
-    global EEE
+    global last_msg_id
     update_id = None
 
     logging.basicConfig(
@@ -107,39 +60,31 @@ def main():
                 elif update_id > last_uid:
                     rate_lim = False
                     counter = 0
-                elif update_id == last_uid and SKIP:
-                    print("Queue flushed")
                 last_uid = update_id
             except telegram.error.NetworkError as e:
-                if DEBUG:
-                    print(str(e))
-                    sleep(1)
                 if "400" in str(e) or "message not found" in str(e):
-                    update_id=EEE+1
+                    update_id = last_msg_id + 1
                     print("!!",update_id)
                 else:
-                    sleep(1)
+                    time.sleep(1)
                     counter = 0
             except telegram.TelegramError as e:
-                if DEBUG:
-                    print(str(e))
-                    sleep(1)
                 if e.message in ("Bad Gateway", "Timed out"):
                     counter = 0
-                    sleep(1)
+                    time.sleep(1)
                 elif "Too many requests" in e.message:
                     counter += 1
                     print("Ratelimit: sleeping for ", 5*counter, " seconds")
-                    sleep(5*counter)
+                    time.sleep(5*counter)
                     rate_lim = True
                 elif "Unauthorized" in e.message:
-                    update_id=EEE+1
+                    update_id = last_msg_id + 1
                     print("!!",update_id)
                 elif "400" in e.message:
-                    update_id=EEE+1
+                    update_id=last_msg_id+1
                     print("!!",update_id)
                 elif "invalid server response" in e.message.lower():
-                    sleep(1)
+                    time.sleep(1)
                 else:
                     counter = 0
                     raise e
@@ -148,18 +93,13 @@ def main():
                 save("Ctrl-C")
                 return
             except URLError as e:
-                sleep(1)
+                time.sleep(1)
                 counter = 0
             if not rate_lim:
                 counter = 0
     except BaseException as e:
         save("Exception")
         raise e
-            
-
-import random, unicodedata, os
-ALLOWABLE = ["Lc","Ll","Lm","Lo","Lt","Lu","Nd","Nl","No"]
-COMMON_T = 0
 
 def addMessage(message, g):
     w = [""] + message.lower().split(" ") + [""]
@@ -171,28 +111,16 @@ def addMessage(message, g):
                 g[lw] = []
             g[lw].append(nw)
 
-SPLIT_LINES = False
-LAST_USER = {}
-
-import os
 
 def limit(s):
     t = " ".join(s.split(" ")[:50])
     return t[:400]
 
-LANGS = ["af","an","bg","bs","ca","cs","cy","da","de","el","en","en-gb","en-sc","en-uk-north","en-uk-rp","en-uk-wmids","en-us","en-wi","eo","es","es-la","et","fa","fa-pin","fi","fr-be","fr-fr","ga","grc","hi","hr","hu","hy","hy-west","id","is","it","jbo","ka","kn","ku","la","lfn","lt","lv","mk","ml","ms","ne","nl","no","pa","pl","pt-br","pt-pt","ro","ru","sk","sq","sr","sv","sw","ta","tr","vi","vi-hue","vi-sgn","zh","zh-yue"]
-
-gcache = []
-max_cache_size = 10
-gc_counter = 20
-
 def load_group(chat_id):
     global gcache
     try:
         with open("markov/chat_" + str(chat_id) + ".dat", "rb") as f:
-            print("loading",chat_id)
             groups[chat_id] = pickle.load(f)
-            print("loaded",chat_id,"now",len(gcache))
         gcache.append(chat_id)
     except:
         pass
@@ -204,16 +132,13 @@ def check_cache():
         unload_group(gcache[0])
         gcache = gcache[1:]
 
-import gc
 def unload_group(chat_id):
     global gcache, gc_counter
     try:
         with open("markov/chat_" + str(chat_id) + ".dat", "wb") as f:
-            print("unloading",chat_id)
             pickle.dump(groups[chat_id], f)
             groups[chat_id] = None
             del groups[chat_id]
-            print("unloaded",chat_id)
         gcache.remove(chat_id)
         gc_counter -= 1
         if gc_counter < 1:
@@ -226,21 +151,26 @@ def unload_group(chat_id):
 def save_group(chat_id):
     try:
         with open("markov/chat_" + str(chat_id) + ".dat", "wb") as f:
-            print("saving",chat_id)
             pickle.dump(groups[chat_id], f)
-            print("saved",chat_id)
     except:
         pass
+    
+def generateMarkovOgg(g, msg):
+    # g are the group settings
+    # msg is the message data
+    # call espeak and opusenc
+    os.system("rm markov.ogg 2>nul")
+    os.system("espeak -s" + str(g[2]) + " -v" + g[1] + " \"" + limit(quoteEscape(msg)) + "\" --stdout | opusenc - markov.ogg >nul 2>&1")
 
 keys = list(groups.keys())
 for key in keys:
     unload_group(key)
 
 def echo(bot, update_id):
-    global COMMON_T, EEE, gcache
+    global COMMON_T, last_msg_id, gcache
 
     for update in bot.getUpdates(offset=update_id, timeout=10):
-        EEE = update.update_id
+        last_msg_id = update.update_id
         if update.message == None:
             continue
         chat_id = update.message.chat_id
@@ -254,8 +184,6 @@ def echo(bot, update_id):
             admbypass = admbypass or update.message.chat.all_members_are_administrators
         except:
             pass
-        if DEBUG:
-            print(EEE, chat_id, user, message)
 
         if chat_id not in gcache:
             load_group(chat_id)
@@ -278,7 +206,7 @@ def echo(bot, update_id):
             g[4] = 10000
             
         curtime = time.time()
-        t = (user, chat_id)
+        t = str(user) + ":" + str(chat_id)
         
         if len(message) < 1:
             continue
@@ -286,17 +214,18 @@ def echo(bot, update_id):
             rcmd = message.split(" ")[0].split("@")[0]
             cmd = rcmd.lower()
             if cmd == "/markov":
-                if SKIP: continue
                 if t in LAST_USER.keys():
                     if (curtime - LAST_USER[t]) < g[0]:
                         continue
-                    
+
                 LAST_USER[t] = curtime
                 COMMON_T += 1
                 if COMMON_T == 8:
                     COMMON_T = 0
+                tries_o = 0
                 if "" in g.keys():
                     while True:
+                        tries_o += 1
                         words = []
                         word = ""
                         if random.randint(0,10)<5:
@@ -310,15 +239,9 @@ def echo(bot, update_id):
                                 word = ""
                             else:
                                 word = random.choice(g[word])
-                            if word == "" and random.randint(0,8)<5:
-                                word = random.choice(list(g.keys()))
-                                while type(word) != str:
-                                    word = random.choice(list(g.keys()))
-                                if random.randint(0,10)<3 and len(words)>0:
-                                    if words[-1] not in "!:,.?;":
-                                        words[-1] += "."
                         msg = " ".join(words)
                         if len(msg) > 0: break
+                        if tries_o > 1000: break
                     try:
                         bot.sendMessage(chat_id=chat_id,
                             text=msg)
@@ -332,11 +255,9 @@ def echo(bot, update_id):
                     except:
                         pass
             if cmd == "/mlimit":
-                if SKIP: continue
                 if t in LAST_USER.keys():
                     if (curtime - LAST_USER[t]) < 1:
                         continue
-                if SKIP: continue
                 try:
                     st = bot.getChatMember(chat_id=chat_id, user_id=user).status
                     if chat_type in ["group","supergroup","channel"] and not admbypass and (st != "administrator" and st != "creator"):
@@ -361,12 +282,12 @@ def echo(bot, update_id):
                             text="[limit must be between 1-100 000 seconds]",
                             reply_to_message_id=replyto)
                     continue
+                #print(t, "=", g[0])
                 bot.sendMessage(chat_id=chat_id,
                         text="[Limit set]",
                         reply_to_message_id=replyto)
                 g[0] = v
             if cmd == "/markovttsspeed":
-                if SKIP: continue
                 if t in LAST_USER.keys():
                     if (curtime - LAST_USER[t]) < 1:
                         continue
@@ -504,20 +425,12 @@ def echo(bot, update_id):
                                 word = ""
                             else:
                                 word = random.choice(g[word])
-                            if word == "" and random.randint(0,8)<6:
-                                word = random.choice(list(g.keys()))
-                                while type(word) != str:
-                                    word = random.choice(list(g.keys()))
-                                if random.randint(0,10)<3 and len(words)>0:
-                                    if words[-1] not in "!:,.?;":
-                                        words[-1] += "."
                         msg = " ".join(words)
                         if len(msg) > 0: break
                     def quoteEscape(s):
                         return s.replace("\\","\\\\").replace("\"","\\\"")
                     try:
-                        os.system("rm markov.ogg 2>nul")
-                        os.system("espeak -s" + str(g[2]) + " -v" + g[1] + " \"" + limit(quoteEscape(msg)) + "\" --stdout | opusenc - markov.ogg >nul 2>&1")
+                        generateMarkovOgg(msg, g)
                         bot.sendVoice(chat_id=chat_id,
                             voice=open("markov.ogg","rb"))
                     except BaseException as e:
@@ -551,11 +464,8 @@ def echo(bot, update_id):
                     for line in message.split("\n"):
                         addMessage(line, g)
                 else:
-                    addMessage(message, g)
-    sleep(0.4)            
+                    addMessage(message, g)       
     return update_id
-    
-    
     
 import logging
 
@@ -563,7 +473,6 @@ if __name__ == '__main__':
     while True:
         try:
             main()
-            #save("main")
             import sys
             sys.exit(0)
         except KeyboardInterrupt:
