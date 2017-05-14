@@ -15,9 +15,11 @@ LAST_USER = {}
 LANGS = ["af","an","bg","bs","ca","cs","cy","da","de","el","en","en-gb","en-sc","en-uk-north","en-uk-rp","en-uk-wmids","en-us","en-wi","eo","es","es-la","et","fa","fa-pin","fi","fr-be","fr-fr","ga","grc","hi","hr","hu","hy","hy-west","id","is","it","jbo","ka","kn","ku","la","lfn","lt","lv","mk","ml","ms","ne","nl","no","pa","pl","pt-br","pt-pt","ro","ru","sk","sq","sr","sv","sw","ta","tr","vi","vi-hue","vi-sgn","zh","zh-yue"]
 
 gcache = []
+# how many groups will be cached at most at one time
 max_cache_size = 10
-gc_counter = 20
-
+# GC is forced every N group unloads
+gc_every_unload = 30
+gc_counter = gc_every_unload
 
 try:
     from urllib.error import URLError
@@ -43,18 +45,15 @@ def main():
     counter = 0
     rate_lim = False
     last_uid = None
-    
-
-    F = 0
-    ij = 0
+    save_counter = 0
     try:
         while True:
             try:
                 update_id = echo(bot, update_id)
-                ij += 1
-                if ij == 1024:
-                    ij = 0
-                    save("/"+str(ij)+" update")
+                save_counter += 1
+                if save_counter == 1024:
+                    save_counter = 0
+                    save("/"+str(save_counter)+" update")
                 if last_uid == None:
                     last_uid = update_id
                 elif update_id > last_uid:
@@ -142,9 +141,8 @@ def unload_group(chat_id):
         gcache.remove(chat_id)
         gc_counter -= 1
         if gc_counter < 1:
-            gc_counter = 20
+            gc_counter = gc_every_unload
             gc.collect()
-            print("forcing gc")
     except:
         pass
 
@@ -155,16 +153,12 @@ def save_group(chat_id):
     except:
         pass
     
-def generateMarkovOgg(g, msg):
+def generateMarkovOgg(msg, g):
     # g are the group settings
     # msg is the message data
     # call espeak and opusenc
     os.system("rm markov.ogg 2>nul")
     os.system("espeak -s" + str(g[2]) + " -v" + g[1] + " \"" + limit(quoteEscape(msg)) + "\" --stdout | opusenc - markov.ogg >nul 2>&1")
-
-keys = list(groups.keys())
-for key in keys:
-    unload_group(key)
 
 def echo(bot, update_id):
     global COMMON_T, last_msg_id, gcache
@@ -193,7 +187,12 @@ def echo(bot, update_id):
             gcache.append(chat_id)
             check_cache()
                 
+        # g contents
+        # [mlimit, tts language, tts speed, markov collecting (pause/resume), ~ maximum words]
         g = groups[chat_id]
+        if g == None:   
+            groups[chat_id] = {}
+            g = {}
         if 0 not in g.keys():
             g[0] = 1
         if 1 not in g.keys():
@@ -351,18 +350,19 @@ def echo(bot, update_id):
                     if (curtime - LAST_USER[t]) < 1:
                         continue
                 try:
+                    # do not allow non-admins to clear
                     st = bot.getChatMember(chat_id=chat_id, user_id=user).status
                     if chat_type in ["group","supergroup","channel"] and not admbypass and (st != "administrator" and st != "creator"):
                         continue
                 except:
                     pass
-                hash = hashlib.md5((str(chat_id)+str(user)+str(time.time()//1000)).encode("utf-8")).hexdigest()[:12].upper()
+                checkhash = hashlib.md5((str(chat_id)+str(user)+str(time.time()//1000)).encode("utf-8")).hexdigest()[:12].upper()
                 what = ""
                 try:
                     what = message.split(" ")[1].upper()
                 except:
                     pass
-                if what == hash:
+                if what == checkhash:
                     groups[chat_id] = {}
                     save_group(chat_id)
                     bot.sendMessage(chat_id=chat_id,
@@ -458,7 +458,6 @@ def echo(bot, update_id):
                         reply_to_message_id=replyto)
                 g[1] = v
         elif message[0] != "/":
-            g = groups[chat_id]
             if g[3]:
                 if SPLIT_LINES:
                     for line in message.split("\n"):
