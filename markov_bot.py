@@ -21,6 +21,9 @@ max_cache_size = 10
 gc_every_unload = 30
 gc_counter = gc_every_unload
 
+# obtained when the bot is initialized
+MY_USERNAME = ""
+
 try:
     from urllib.error import URLError
 except ImportError:
@@ -34,13 +37,14 @@ def save(reason):
 
 last_msg_id = 0
 def main():
-    global last_msg_id
+    global last_msg_id, MY_USERNAME
     update_id = None
 
     logging.basicConfig(
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     bot = telegram.Bot(T)
+    MY_USERNAME = bot.getMe()["username"].lower()
 
     counter = 0
     rate_lim = False
@@ -211,6 +215,11 @@ def echo(bot, update_id):
             continue
         if message[0] == "/":
             rcmd = message.split(" ")[0].split("@")[0]
+            if "@" in message.split(" ")[0]:
+                cmdtarget = message.split(" ")[0].split("@")[1]
+                # if the command is aimed at some other bot
+                if cmdtarget.lower() != MY_USERNAME:
+                    continue
             cmd = rcmd.lower()
             if cmd == "/markov":
                 if t in LAST_USER.keys():
@@ -370,7 +379,7 @@ def echo(bot, update_id):
                         reply_to_message_id=replyto)                    
                 else:
                     bot.sendMessage(chat_id=chat_id,
-                        text="[Copy this to confirm]\n/markovclear " + hash,
+                        text="[Copy this to confirm]\n/markovclear " + checkhash,
                         reply_to_message_id=replyto)
             if cmd == "/markovpause":
                 if t in LAST_USER.keys():
