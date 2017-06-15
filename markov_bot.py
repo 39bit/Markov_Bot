@@ -231,7 +231,6 @@ def generateMarkovOgg(msg, g):
     
 import logging
 
-E_UPD = None
 tried_to = 0
 saferes = True
 OFF = 0
@@ -266,7 +265,6 @@ try:
         print(len(updates), end="")
         print("(" + str(OFF) + ")")
         for update in updates:
-            E_UPD = update
             last_msg_id = update.update_id
             OFF = update.update_id + 1
             if not update.has("message"):
