@@ -621,7 +621,6 @@ try:
 except KeyboardInterrupt as e:
     save("Quit")
 except BaseException as e:
-    print(E_UPD)
     save("Exception")
     traceback.print_exc()
     
