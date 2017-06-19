@@ -2,4 +2,6 @@
 
 Generates messages in chats based on Markov chains.
 
-Used libraries: none (uses a custom Telegram library)
+Requires at least Python 3.3.
+
+Used libraries: requests (https://pypi.python.org/pypi/requests)

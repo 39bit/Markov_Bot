@@ -1,5 +1,5 @@
 
-import os.path, pickle, hashlib, logging, time, sys, traceback, random, unicodedata, os, gc, json, urllib.error, urllib.parse, urllib.request, socket, requests
+import os.path, pickle, hashlib, logging, time, sys, traceback, random, unicodedata, os, gc, json, urllib.error, urllib.parse, urllib.request, socket, requests, shlex
 # minimal Telegram bot library
 SENT = False
 
@@ -227,7 +227,7 @@ def generateMarkovOgg(msg, g):
     # msg is the message data
     # call espeak and opusenc
     os.system("rm markov.ogg 2>nul")    
-    os.system("espeak -s" + str(g[2]) + " -v" + g[1] + " \"" + limit(quoteEscape(msg)) + "\" --stdout | opusenc - markov.ogg >nul 2>&1")
+    os.system("espeak -s" + str(g[2]) + " -v" + g[1] + " \"" + shlex.quote(limit(msg)) + "\" --stdout | opusenc - markov.ogg >nul 2>&1")
     
 import logging
 
@@ -573,8 +573,6 @@ try:
                                     word = random.choice(g[word])
                             msg = " ".join(words)
                             if len(msg) > 0: break
-                        def quoteEscape(s):
-                            return s.replace("\\","\\\\").replace("\"","\\\"")
                         try:
                             generateMarkovOgg(msg, g)
                             headers = {'User-Agent': UA}
