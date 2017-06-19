@@ -227,7 +227,7 @@ def generateMarkovOgg(msg, g):
     # msg is the message data
     # call espeak and opusenc
     os.system("rm markov.ogg 2>nul")    
-    os.system("espeak -s" + str(g[2]) + " -v" + g[1] + " \"" + shlex.quote(limit(msg)) + "\" --stdout | opusenc - markov.ogg >nul 2>&1")
+    os.system("espeak -s" + str(g[2]) + " -v" + g[1] + " " + shlex.quote(limit(msg)) + " --stdout | opusenc - markov.ogg >nul 2>&1")
     
 import logging
 
