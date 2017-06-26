@@ -281,7 +281,10 @@ try:
                 if oid in gcache:
                     unload_group(oid)
                 # rename db file
-                os.rename("markov/chat_" + str(oid) + ".dat", "markov/chat_" + str(nid) + ".dat")
+                try:
+                    os.rename("markov/chat_" + str(oid) + ".dat", "markov/chat_" + str(nid) + ".dat")
+                except: # file does not exist, ignore
+                    pass    
                 continue
             if update.message.has("text"):
                 message = update.message.text
