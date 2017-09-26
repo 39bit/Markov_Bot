@@ -196,7 +196,6 @@ def check_cache():
     global gcache
     while len(gcache) > max_cache_size:
         unload_group(gcache[0])
-        gcache = gcache[1:]
 
 def unload_group(chat_id):
     global gcache, gc_counter
