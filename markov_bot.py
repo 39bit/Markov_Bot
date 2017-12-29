@@ -1,10 +1,10 @@
-
 import os.path, pickle, hashlib, logging, time, sys, traceback, random, unicodedata, os, gc, json, urllib.error, urllib.parse, urllib.request, socket, requests, shlex
 # minimal Telegram bot library
 SENT = False
 
-T = "BOT_TOKEN_GOES_HERE"
-UA = "A_BROWSER_USER_AGENT_GOES_HERE"
+# TODO: separate these into a configuration file, e.g yaml or json.
+T = "BOT_TOKEN_GOES_HERE" # obtain this from BotFather!
+UA = "USER_AGENT_HERE" # e.g. "py/markovbot"
 custom_urlopen = lambda u,**kw:urllib.request.urlopen(urllib.request.Request(u, headers={'User-Agent': UA}),**kw)
 class TelegramBot():
     class attribute_dict():
@@ -225,7 +225,7 @@ def generateMarkovOgg(msg, g):
     # g are the group settings
     # msg is the message data
     # call espeak and opusenc
-    os.system("rm markov.ogg 2>nul")    
+    os.system("rm markov.ogg 2>nul") # TODO: possible bug? this writes a file named "nul"    
     os.system("espeak -s" + str(g[2]) + " -v" + g[1] + " " + shlex.quote(limit(msg)) + " --stdout | opusenc - markov.ogg >nul 2>&1")
     
 import logging
@@ -357,7 +357,7 @@ try:
                                 word = random.choice(list(filter(lambda x:type(x)==str,g.keys())))
                             else:
                                 word = random.choice(g[word])
-                            while word != "" and len(words) < min(g[4],100):
+                            while word != "" and len(words) < min(g[4],10000):
                                 words.append(word)
                                 word = "".join(filter(lambda x:(unicodedata.category(x) in ALLOWABLE),word)).lower()
                                 if word not in g.keys():
@@ -398,7 +398,7 @@ try:
                     t = " ".join(message.split(" ")[1:]).strip()
                     if len(t) < 1:
                         bot.sendMessage(chat_id=chat_id,
-                                text="[Usage: /mlimit seconds]",
+                                text="[Usage: /mlimit seconds, current limit is {0}]".format(str(g[0])),
                                 reply_to_message_id=replyto)
                         continue
                     try:
@@ -407,7 +407,7 @@ try:
                         raise e
                     except:
                         bot.sendMessage(chat_id=chat_id,
-                                text="[Usage: /mlimit seconds]",
+                                text="[Usage: /mlimit seconds, current limit is {0}]".format(str(g[0])),
                                 reply_to_message_id=replyto)
                         continue
                     if v <= 0 or v > 100000:
@@ -417,7 +417,7 @@ try:
                         continue
                     #print(t, "=", g[0])
                     bot.sendMessage(chat_id=chat_id,
-                            text="[Limit set]",
+                            text="[Limit set to {0} seconds]".format(str(v)),
                             reply_to_message_id=replyto)
                     g[0] = v
                 if cmd == "/markovttsspeed":
@@ -427,7 +427,7 @@ try:
                     t = " ".join(message.split(" ")[1:]).strip()
                     if len(t) < 1:
                         bot.sendMessage(chat_id=chat_id,
-                                text="[Usage: /markovttsspeed wpm]",
+                                text="[Usage: /markovttsspeed wpm, current wpm is {0}]".format(str(g[2])),
                                 reply_to_message_id=replyto)
                         continue
                     try:
@@ -436,7 +436,7 @@ try:
                         raise e
                     except:
                         bot.sendMessage(chat_id=chat_id,
-                                text="[Usage: /markovttsspeed wpm]",
+                                text="[Usage: /markovttsspeed wpm, current wpm is {0}]".format(str(g[2])),
                                 reply_to_message_id=replyto)
                         continue
                     if v < 80 or v > 500:
@@ -445,7 +445,7 @@ try:
                                 reply_to_message_id=replyto)
                         continue
                     bot.sendMessage(chat_id=chat_id,
-                            text="[Speed set]",
+                            text="[Speed set to {0}]".format(str(v)),
                             reply_to_message_id=replyto)
                     g[2] = v
                 if cmd == "/markovmaxwords":
@@ -463,7 +463,7 @@ try:
                     t = " ".join(message.split(" ")[1:]).strip()
                     if len(t) < 1:
                         bot.sendMessage(chat_id=chat_id,
-                                text="[Usage: /markovmaxwords words]",
+                                text="[Usage: /markovmaxwords words, current max words is {0}]".format(str(g[4])),
                                 reply_to_message_id=replyto)
                         continue
                     try:
@@ -472,7 +472,7 @@ try:
                         raise e
                     except:
                         bot.sendMessage(chat_id=chat_id,
-                                text="[Usage: /markovmaxwords words]",
+                                text="[Usage: /markovmaxwords words, current max words is {0}]".format(str(g[4])),
                                 reply_to_message_id=replyto)
                         continue
                     if v < 1 or v > 120:
@@ -483,7 +483,7 @@ try:
                     g[4] = v
                     save_group(chat_id)
                     bot.sendMessage(chat_id=chat_id,
-                        text="[Maximum words set]",
+                        text="[Maximum words set to {0}]".format(str(v)),
                         reply_to_message_id=replyto)                    
                 if cmd == "/markovclear":
                     if t in LAST_USER.keys():
